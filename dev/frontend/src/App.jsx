@@ -4,6 +4,8 @@ import { SignUp } from "./pages/SignUp";
 import { SignIn } from "./pages/SignIn";
 import { Dashboard } from "./pages/Dashboard";
 import { ChatBot } from "./pages/ChatBot";
+import { AboutPage } from "./pages/AboutPage";
+import { ContactPage } from "./pages/ContactPage";
 
 function App() {
   return (
@@ -15,6 +17,8 @@ function App() {
           <Route path="/signin" element={<SignIn />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/chatbot" element={<ChatBot/>} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element ={<ContactPage/>} />
         </Routes>
       </BrowserRouter>
     </>

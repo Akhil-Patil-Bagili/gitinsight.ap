@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RiChatNewLine as ChatIcon, RiMore2Fill } from 'react-icons/ri';
+import { RiChatNewLine as ChatIcon, RiMore2Fill, RiLoader4Line as SpinnerIcon } from 'react-icons/ri';
 import { Appbar } from '../components/Appbar';
 import '../index.css';
 
@@ -18,9 +18,20 @@ export const ChatBot = () => {
     const [selectedSessionId, setSelectedSessionId] = useState(null);
     const [chatSessions, setChatSessions] = useState({});
     const [messages, setMessages] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const sessionOptionsRef = useRef(null);
 
     useEffect(() => {
-        // Placeholder for initialization logic, such as fetching chat history
+        const handleClickOutside = (event) => {
+            if (sessionOptionsRef.current && !sessionOptionsRef.current.contains(event.target)) {
+                setSessionOptionsVisible(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, []);
 
     const handleNewChat = () => {
@@ -28,13 +39,14 @@ export const ChatBot = () => {
         setSelectedSessionId(newSessionId);
         setChatSessions({ ...chatSessions, [newSessionId]: { messages: [] } });
         setMessages([]);
-        setPromptVisible(true); // Show the prompt when starting a new chat
+        setPromptVisible(true);
     };
 
     const handleSelectSession = (sessionId) => {
         setSelectedSessionId(sessionId);
         setMessages(chatSessions[sessionId].messages);
-        setPromptVisible(false); // Hide the prompt when viewing an existing session
+        setPromptVisible(false);
+        setSessionOptionsVisible(false);
     };
 
     const handleDeleteSession = (sessionId) => {
@@ -47,7 +59,6 @@ export const ChatBot = () => {
     };
 
     const handleRenameSession = (sessionId) => {
-        // For simplicity, we'll prompt for a new name here
         const newName = window.prompt('Enter new name for the session:', sessionId);
         if (newName) {
             const updatedSessions = {
@@ -57,6 +68,7 @@ export const ChatBot = () => {
             delete updatedSessions[sessionId];
             setChatSessions(updatedSessions);
             setSelectedSessionId(newName);
+            setSessionOptionsVisible(false);
         }
     };
 
@@ -65,26 +77,20 @@ export const ChatBot = () => {
     };
 
     const handleQuickQuestion = async (quickQuestion) => {
-        setPromptVisible(false); // Hide the prompt when a question is posted
         const userMessage = { text: quickQuestion, user: true };
-        const newMessages = [...messages, userMessage];
-        setMessages(newMessages);
-        setChatSessions({
-            ...chatSessions,
-            [selectedSessionId]: { messages: newMessages }
-        });
+        setMessages(messages => [...messages, userMessage]);
+        setIsLoading(true);
+        setPromptVisible(false); // Close quick access questions
 
         try {
             const response = await axios.post('/ask', { question: quickQuestion });
             const aiMessage = { text: response.data.answer, user: false };
-            const finalMessages = [...newMessages, aiMessage];
-            setMessages(finalMessages);
-            setChatSessions({
-                ...chatSessions,
-                [selectedSessionId]: { messages: finalMessages }
-            });
+            setMessages(messages => [...messages, aiMessage]);
         } catch (error) {
             console.error('Error communicating with the API:', error);
+            setMessages(messages => [...messages, { text: 'Error fetching response', user: false }]);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -93,6 +99,7 @@ export const ChatBot = () => {
         if (!input.trim()) return;
         handleQuickQuestion(input);
         setInput('');
+        setPromptVisible(false); // Close quick access questions on submitting the first query
     };
 
     return (
@@ -112,13 +119,15 @@ export const ChatBot = () => {
                                 <div onClick={() => handleSelectSession(sessionId)}>
                                     {sessionId}
                                 </div>
-                                <RiMore2Fill onClick={toggleSessionOptions} className="inline w-6 h-6 ml-2"/>
-                                {sessionOptionsVisible && selectedSessionId === sessionId && (
-                                    <div className="absolute bg-white shadow-lg rounded p-2">
-                                        <div className="cursor-pointer p-1 hover:bg-gray-100" onClick={() => handleRenameSession(sessionId)}>Rename</div>
-                                        <div className="cursor-pointer p-1 hover:bg-gray-100" onClick={() => handleDeleteSession(sessionId)}>Delete</div>
-                                    </div>
-                                )}
+                                <div className="relative">
+                                    <RiMore2Fill onClick={toggleSessionOptions} className="inline w-6 h-6 ml-2"/>
+                                    {sessionOptionsVisible && selectedSessionId === sessionId && (
+                                        <div className="absolute right-0 bg-white shadow-lg rounded p-2" ref={sessionOptionsRef}>
+                                            <div className="cursor-pointer p-1 hover:bg-gray-100" onClick={() => handleRenameSession(sessionId)}>Rename</div>
+                                            <div className="cursor-pointer p-1 hover:bg-gray-100" onClick={() => handleDeleteSession(sessionId)}>Delete</div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -131,17 +140,16 @@ export const ChatBot = () => {
                             </div>
                         </div>
                     )}
-                    
                     <div className="flex-grow overflow-y-auto">
                         {messages.map((message, index) => (
                             <div key={index} className={`p-2 ${message.user ? 'text-right' : 'text-left'}`}>
-                                <span className={`inline-block p-2 rounded ${message.user ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}>
+                                <span className={`inline-block p-2 rounded ${message.user ? 'bg-gray-400 text-black' : 'bg-gray-600 text-white'}`}>
                                     {message.text}
                                 </span>
                             </div>
                         ))}
+                        {isLoading && <div className="text-center flex justify-center"><SpinnerIcon className="animate-spin text-lg" /></div>}
                     </div>
-
                     {promptVisible && (
                         <div className="mb-16 px-4">
                             <div className="grid grid-cols-2 gap-4">
@@ -157,7 +165,6 @@ export const ChatBot = () => {
                             </div>
                         </div>
                     )}
-
                     <div className="p-2 bg-white border-t-2 border-gray-200">
                         <form onSubmit={handleSubmit} className="flex">
                             <input

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { BottomWarning } from '../components/BottomWarning';
 import { LongButton } from '../components/LongButton';
@@ -15,19 +14,22 @@ export const SignUp = () => {
     const [password, setPassword] = useState('');
     const navigate = useNavigate();
 
-    const handleSubmit = async () => {
-        try {
-            const response = await axios.post('http://localhost:3000/api/v1/user/signup', {
-                firstName,
-                lastName,
-                username,
-                password
-            });
-            localStorage.setItem('token', response.data.token);
-            navigate('/dashboard');
-        } catch (error) {
-            console.error('Signup failed:', error);
+    const handleSubmit = () => {
+        const users = JSON.parse(localStorage.getItem('users') || '[]'); // Retrieve users or an empty array if none
+        // Check if the user already exists
+        if (users.some(user => user.username === username)) {
+            alert('Username already taken');
+            return;
         }
+        const newUser = {
+            firstName,
+            lastName,
+            username,
+            password // In a real application, never store plaintext passwords!
+        };
+        localStorage.setItem('users', JSON.stringify([...users, newUser])); // Save the new user array to local storage
+        alert('Signup successful');
+        navigate('/signin');
     };
 
     const handleKeyPress = (e) => {
@@ -36,23 +38,26 @@ export const SignUp = () => {
         }
     };
 
-    return <div>
-        <LandingBar />
-        <div className="bg-slate-200 h-screen flex justify-center" onKeyDown={handleKeyPress}>
-            <div className="flex flex-col justify-center">
-                <div className="rounded-lg bg-white w-80 text-center p-2 h-max px-4">
-                    <Heading label="Sign up" />
-                    <SubHeading label="Enter your information to create an account" />
-                    <InputBox onChange={(e) => setFirstName(e.target.value)} placeholder="John" label="First Name" />
-                    <InputBox onChange={(e) => setLastName(e.target.value)} placeholder="Doe" label="Last Name" />
-                    <InputBox onChange={(e) => setUsername(e.target.value)} placeholder="johndoe@gmail.com" label="Email" />
-                    <InputBox onChange={(e) => setPassword(e.target.value)} placeholder="john@12345" label="Password" />
-                    <div className="pt-4">
-                        <LongButton onClick={handleSubmit} label="Sign up" />
+    return (
+        <div>
+            <LandingBar />
+            <div className="bg-slate-200 h-screen flex justify-center" onKeyDown={handleKeyPress}>
+                <div className="flex flex-col justify-center">
+                    <div className="rounded-lg bg-white w-80 text-center p-2 h-max px-4">
+                        <Heading label="Sign up" />
+                        <SubHeading label="Enter your information to create an account" />
+                        <InputBox onChange={(e) => setFirstName(e.target.value)} placeholder="John" label="First Name" />
+                        <InputBox onChange={(e) => setLastName(e.target.value)} placeholder="Doe" label="Last Name" />
+                        <InputBox onChange={(e) => setUsername(e.target.value)} placeholder="johndoe@gmail.com" label="Email" />
+                        <InputBox onChange={(e) => setPassword(e.target.value)} placeholder="john@12345" label="Password" />
+                        <div className="pt-4">
+                            <LongButton onClick={handleSubmit} label="Sign up" />
+                        </div>
+                        <BottomWarning label="Already have an account?" buttonText="Sign in" to="/signin" />
                     </div>
-                    <BottomWarning label="Already have an account?" buttonText="Sign in" to="/signin" />
                 </div>
             </div>
         </div>
-    </div>
+    );
 };
+
