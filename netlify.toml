@@ -1,0 +1,11 @@
+[[headers]]
+# Apply headers to JavaScript files
+for = "*.js"
+[headers.values]
+Content-Type = "text/javascript"
+
+[[headers]]
+# Apply headers to JSX files
+for = "*.jsx"
+[headers.values]
+Content-Type = "text/javascript"
