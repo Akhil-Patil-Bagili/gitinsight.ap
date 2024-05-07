@@ -1,59 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ButtonDark } from './ButtonDark';
 
-export const Appbar = ({ user }) => {
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+export const Appbar = () => {
     const navigate = useNavigate();
-    const initial = user && user.firstName ? user.firstName.charAt(0) : '?';
-    const menuRef = useRef(); 
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
-                setIsMenuOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, []);
-
-    const toggleMenu = () => {
-        setIsMenuOpen(!isMenuOpen);
+   
+    // Assuming you want to retrieve the firstName of the first user in the array
+    const getUsers = () => {
+        const usersJson = localStorage.getItem('users');
+        return usersJson ? JSON.parse(usersJson) : [];
     };
+
+
+    const users = getUsers();
+    const userFirstName = users.length > 0 ? users[0].firstName : 'Guest';
+
 
     const handleLogout = () => {
-        navigate("/signin");
         localStorage.clear();
         sessionStorage.clear();
+        navigate("/signin");
     };
-
-    const handleProfile = () => {
-        navigate("/profile");
-    }
-
     return (
         <div className="shadow h-14 flex justify-between items-center px-4">
             <a href="/dashboard" className="text-3xl font-bold font-poppins">
                 GitInsight
             </a>
-            <div className="flex items-center" ref={menuRef}>
-                <div className="flex flex-col justify-center h-full mr-4 text-gray-700">
-                    Hello, {user && user.firstName ? user.firstName : 'Guest'}
+            <div className="flex items-center">
+                <div className="mr-4 text-gray-700">
+                    Hello, {userFirstName}
                 </div>
-                <button onClick={toggleMenu} className="rounded-full w-12 h-12 bg-gray-200 flex justify-center items-center text-xl cursor-pointer text-gray-700">
-                    {initial}
-                </button>
-                {isMenuOpen && (
-                    <div className="absolute right-5 top-12 mt-1 w-48 bg-white rounded-md shadow-lg z-50">
-                        <ul className="py-1">
-                            <li className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer" onClick={handleProfile}>Profile</li>
-                            <li className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer" onClick={handleLogout}>Logout</li>
-                        </ul>
-                    </div>
-                )}
+                <ButtonDark onClick={handleLogout} label="Logout" />
             </div>
         </div>
     );

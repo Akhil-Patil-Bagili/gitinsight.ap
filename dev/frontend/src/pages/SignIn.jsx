@@ -7,10 +7,12 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { LandingBar } from "../components/LandingBar"
 
+
 export const SignIn = () => {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const navigate = useNavigate();
+
 
     const handleSubmit = () => {
         const users = JSON.parse(localStorage.getItem('users') || '[]');
@@ -23,6 +25,7 @@ export const SignIn = () => {
             alert('Invalid credentials');
         }
     };
+
 
     return (
         <div>
