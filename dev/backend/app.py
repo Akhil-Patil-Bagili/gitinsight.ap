@@ -10,15 +10,16 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from pathlib import Path
 import cassio
-from llama_index import StorageContext, VectorStoreIndex
+from llama_index.core import StorageContext, VectorStoreIndex
 from llama_index.vector_stores import CassandraVectorStore
-from llama_index import download_loader
+from llama_index.core import download_loader
 import openai
 from llama_index.llms import OpenAI
 from functools import wraps
 import os
 from dotenv import load_dotenv
-
+from llama_index.vector_stores.chroma import ChromaVectorStore
+import chromadb
 load_dotenv()
 
 # MY_ENV_VAR = os.getenv('MY_ENV_VAR')
@@ -27,17 +28,26 @@ app = Flask(__name__)
 CORS(app)
 app.secret_key = 'your_secret_key' 
 
-ASTRA_DB_ID = os.getenv('ASTRA_DB_ID')
-ASTRA_DB_APPLICATION_TOKEN = os.getenv("ASTRA_DB_APPLICATION_TOKEN")
-ASTRA_DB_KEYSPACE = 'default_keyspace'
+# ASTRA_DB_ID = os.getenv('ASTRA_DB_ID')
+# ASTRA_DB_APPLICATION_TOKEN = os.getenv("ASTRA_DB_APPLICATION_TOKEN")
+# ASTRA_DB_KEYSPACE = 'default_keyspace'
 
-cassio.init(
-    database_id=ASTRA_DB_ID,
-    token=ASTRA_DB_APPLICATION_TOKEN,
-    keyspace=ASTRA_DB_KEYSPACE,
-)
+# cassio.init(
+#     database_id=ASTRA_DB_ID,
+#     token=ASTRA_DB_APPLICATION_TOKEN,
+#     keyspace=ASTRA_DB_KEYSPACE,
+# )
+
+# Set your OpenAI API key directly
+openai.api_key = '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'
+
+# openai.api_key = 'sk-proj-MVd1PbBiCOv6ofxxliclT3BlbkFJPNLsbqpabnMZVCM09IG7'
+chroma_client = chromadb.EphemeralClient()
+chroma_collection = []
+
 
 global_vector_retriever = None
+PDFReader = download_loader("PDFReader")
 
 def after_this_endpoint(func_to_run_after):
     def decorator(func):
@@ -54,21 +64,22 @@ def after_this_endpoint(func_to_run_after):
     return decorator
 
 def load_pdf():
+    global chroma_collection
     global global_vector_retriever
+    global PDFReader
     file_path = Path('output3.pdf')
+
     if file_path.exists():
-        cassandra_store = CassandraVectorStore(table="nasa", embedding_dimension=1536)
-        PDFReader = download_loader("PDFReader")
         loader = PDFReader()
         documents = loader.load_data(file=file_path)
-
-        storage_context = StorageContext.from_defaults(vector_store=cassandra_store)
+        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+        storage_context = StorageContext.from_defaults(vector_store=vector_store)
+        # print("in vector store")
         index = VectorStoreIndex.from_documents(
             documents,
             storage_context=storage_context,
         )
-
-        global_vector_retriever = index.as_retriever(similarity_top_k=50)
+        global_vector_retriever = index.as_retriever(similarity_top_k=45)
     else:
         global_vector_retriever = None  # Clear the retriever if no PDF exists
 
@@ -114,29 +125,57 @@ def format_commit(commit, commit_id):
 
     )
 
-def generate_pdf(commits):
-    if commits:
-        formatted_paragraphs = [format_commit(commit, commit_id) for commit_id, commit in enumerate(commits, 1)]
-        formatted_text = "\n\n".join(formatted_paragraphs)
-        
-        c = canvas.Canvas('output3.pdf', pagesize=letter)
-        textobject = c.beginText(40, 750)
+# def generate_pdf(commits):
+#     if not commits:
+#         return
+    
+#     formatted_paragraphs = [format_commit(commit, commit_id) for commit_id, commit in enumerate(commits, 1)]
+#     formatted_text = "\n\n".join(formatted_paragraphs)
+    
+#     c = canvas.Canvas('output3.pdf', pagesize=letter)
+#     textobject = c.beginText(40, 750)
+#     textobject.setFont("Helvetica", 10)
+#     textobject.setLeading(14)
+    
+#     for line in formatted_text.split('\n'):
+#         if textobject.getY() < 40:
+#             c.drawText(textobject)
+#             c.showPage()
+#             textobject = c.beginText(40, 750)
+#         textobject.textLine(line)
+    
+#     c.drawText(textobject)
+#     c.save()
+
+#     # After generating new PDF, reset and reload the global_vector_retriever
+#     load_pdf()
+
+def generate_pdf(commits, filename="output3.pdf"):
+    formatted_paragraphs = [format_commit(commit, commit_id) for commit_id, commit in enumerate(commits, 1)]
+    wrapped_paragraphs = ['\n'.join(textwrap.wrap(paragraph, 100)) for paragraph in formatted_paragraphs]
+    formatted_text = "\n\n".join(wrapped_paragraphs)
+
+    c = canvas.Canvas(filename, pagesize=letter)
+    width, height = letter
+
+    def add_text_to_page(text, canvas):
+        textobject = canvas.beginText(40, height - 40)
         textobject.setFont("Helvetica", 10)
         textobject.setLeading(14)
-        
-        for line in formatted_text.split('\n'):
+
+        for line in text.split('\n'):
             if textobject.getY() < 40:
-                c.drawText(textobject)
-                c.showPage()
-                textobject = c.beginText(40, 750)
+                canvas.drawText(textobject)
+                canvas.showPage()
+                textobject = canvas.beginText(40, height - 40)
+                textobject.setFont("Helvetica", 10)
+                textobject.setLeading(14)
             textobject.textLine(line)
-        
-        c.drawText(textobject)
-        c.save()
 
-        # After generating new PDF, reset and reload the global_vector_retriever
-        load_pdf()
+        canvas.drawText(textobject)
 
+    add_text_to_page(formatted_text, c)
+    c.save()
 
 @app.before_request
 def load_session():
@@ -152,6 +191,7 @@ def load_session():
 @app.route('/fetch_commits', methods=['POST'])
 @after_this_endpoint(load_pdf)
 def fetch_commits():
+    global chroma_collection
     data = request.json
     username = data['username']
     openai_key = data['openai_key']
@@ -238,9 +278,10 @@ def fetch_commits():
             all_commits.append(filtered_commit)
 
         page += 1
+    # print("collection defined")
 
+    chroma_collection=chroma_client.get_or_create_collection(username+repo_name)
     generate_pdf(all_commits)
-
     return jsonify({"status": "success", "message": "PDF generated successfully"})
 
 @app.route('/ask', methods=['POST'])
@@ -252,10 +293,12 @@ def qna():
         contexts=global_vector_retriever.retrieve(question)
         
         context_list = [n.get_content() for n in contexts]
-        print("Contexts Retrieved:", context_list)
+        # print("Contexts Retrieved:", context_list)
         
         prompt = "\n\n".join(context_list + [question])
-        print("Final Prompt:", prompt)  # Debug print
+
+        prompt+=" As per the uploaded document."
+        # print("Final Prompt:", prompt)  # Debug print
 
         llm = OpenAI(model="gpt-4-0125-preview")
         response = llm.complete(prompt)
