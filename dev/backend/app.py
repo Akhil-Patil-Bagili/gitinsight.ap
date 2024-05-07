@@ -39,7 +39,7 @@ app.secret_key = 'your_secret_key'
 # )
 
 # Set your OpenAI API key directly
-openai.api_key = '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'
+openai.api_key = '<OPENAI KEY>'
 
 # openai.api_key = 'sk-proj-MVd1PbBiCOv6ofxxliclT3BlbkFJPNLsbqpabnMZVCM09IG7'
 chroma_client = chromadb.EphemeralClient()
