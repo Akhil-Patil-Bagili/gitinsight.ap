@@ -7,12 +7,14 @@ import { InputBox } from '../components/InputBox';
 import { SubHeading } from '../components/SubHeading';
 import { LandingBar } from '../components/LandingBar';
 
+
 export const SignUp = () => {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const navigate = useNavigate();
+
 
     const handleSubmit = () => {
         const users = JSON.parse(localStorage.getItem('users') || '[]'); // Retrieve users or an empty array if none
@@ -32,11 +34,13 @@ export const SignUp = () => {
         navigate('/signin');
     };
 
+
     const handleKeyPress = (e) => {
         if (e.key === 'Enter') {
             handleSubmit();
         }
     };
+
 
     return (
         <div>
@@ -60,4 +64,3 @@ export const SignUp = () => {
         </div>
     );
 };
-
