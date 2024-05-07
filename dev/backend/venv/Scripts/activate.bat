@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set VIRTUAL_ENV=C:\Users\akhil\Desktop\SP\Team\GitInsight_V1\backend\venv
+set VIRTUAL_ENV=C:\Users\akhil\Desktop\SP\Team\Git Pull\Backend\RAG-application-backend\venv
 
 if not defined PROMPT set PROMPT=$P$G
 

@@ -1,151 +1,271 @@
-from flask import Flask, request, jsonify
+from flask import Flask
+from flask import request
+from flask import jsonify
+from flask import session
 from flask_cors import CORS
+# from flask import before_request
 import requests
+import textwrap
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from pathlib import Path
+import cassio
+from llama_index import StorageContext, VectorStoreIndex
+from llama_index.vector_stores import CassandraVectorStore
+from llama_index import download_loader
 import openai
-from cassandra.cluster import Cluster
-from cassandra.auth import PlainTextAuthProvider
-import fitz  # PyMuPDF
-from astra import init_astra_db
+from llama_index.llms import OpenAI
+from functools import wraps
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
+# MY_ENV_VAR = os.getenv('MY_ENV_VAR')
 
 app = Flask(__name__)
 CORS(app)
+app.secret_key = 'your_secret_key' 
 
-@app.route('/test', methods=['GET'])
-def test():
-    return jsonify({"message": "Backend is running!"})
+ASTRA_DB_ID = os.getenv('ASTRA_DB_ID')
+ASTRA_DB_APPLICATION_TOKEN = os.getenv("ASTRA_DB_APPLICATION_TOKEN")
+ASTRA_DB_KEYSPACE = 'default_keyspace'
 
-@app.route('/astra_test', methods=['GET'])
-def astra_test():
-    collections = get_collections()
-    return jsonify({"AstraDB Collections": collections})
+cassio.init(
+    database_id=ASTRA_DB_ID,
+    token=ASTRA_DB_APPLICATION_TOKEN,
+    keyspace=ASTRA_DB_KEYSPACE,
+)
 
+global_vector_retriever = None
 
-def extract_text_from_pdf(pdf_path):
-    doc = fitz.open(pdf_path)
-    text = ""
-    for page in doc:
-        text += page.get_text()
-    return text
+def after_this_endpoint(func_to_run_after):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Run the original function
+            response = func(*args, **kwargs)
+            # Run the additional function
+            func_to_run_after()
+            # TODO: Make function call
+            # Return the original response
+            return response
+        return wrapper
+    return decorator
 
+def load_pdf():
+    global global_vector_retriever
+    file_path = Path('output3.pdf')
+    if file_path.exists():
+        cassandra_store = CassandraVectorStore(table="nasa", embedding_dimension=1536)
+        PDFReader = download_loader("PDFReader")
+        loader = PDFReader()
+        documents = loader.load_data(file=file_path)
 
+        storage_context = StorageContext.from_defaults(vector_store=cassandra_store)
+        index = VectorStoreIndex.from_documents(
+            documents,
+            storage_context=storage_context,
+        )
 
-def get_astra_session():
-    cloud_config= {
-        'secure_connect_bundle': 'path/to/your/secure-connect-database.zip'
-    }
-    auth_provider = PlainTextAuthProvider('clientId', 'clientSecret')
-    cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
-    session = cluster.connect()
-    return session
+        global_vector_retriever = index.as_retriever(similarity_top_k=50)
+    else:
+        global_vector_retriever = None  # Clear the retriever if no PDF exists
 
-
-def fetch_and_refine_commits(username, repo_name):
-    url = f"https://api.github.com/repos/{username}/{repo_name}/commits"
-    response = requests.get(url)
-    refined_commits = []
-    for commit in response.json():
-        refined_commit = {
-            "sha": commit["sha"],
-            "author": commit["commit"]["author"]["name"],
-            "date": commit["commit"]["author"]["date"],
-            "message": commit["commit"]["message"],
-            # Add more fields as needed
-        }
-        refined_commits.append(refined_commit)
-    return refined_commits
-
-
-@app.route('/get_commits', methods=['POST'])
-def get_commits():
-    data = request.json
-    username = data['username']
-    repo_name = data['repo_name']
-    commits = fetch_and_refine_commits(username, repo_name)
-    return jsonify(commits)
-
-
-def generate_response(query, api_key):
-    openai.api_key = api_key
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=query,
-        temperature=0.5,
-        max_tokens=100,
-        top_p=1.0,
-        frequency_penalty=0.0,
-        presence_penalty=0.0
-    )    
-    return response.choices[0].text.strip()
-
-@app.route('/store_commits', methods=['POST'])
-def store_commits():
-    data = request.json
-    username = data['username']
-    repo_name = data['repo_name']
-    commits = fetch_and_refine_commits(username, repo_name)
+def format_file_details(commit_details):
+    if not commit_details:
+        return "no file changes were recorded in this commit."
     
-    astra_client = init_astra_db()
+    detail_sentences = []
+    for detail in commit_details:
+        sentence = f"the '{detail['file name']}' file was {detail['status']}, encompassing {detail['file changes']} change(s) in total, which included {detail['file additions']} addition(s) and {detail['file deletions']} deletion(s)."
+        detail_sentences.append(sentence)
+    return " and ".join(detail_sentences) + "."
 
-    # Assuming you have the correct credentials and database information
-    for commit in commits:
-        try:
-            # Make sure the collection and keyspace are correctly named
-            collection = astra_client.namespace("git").collection("git_commits")
-            # Create the document in the collection
-            response = collection.create(commit)
-            if 'documentId' not in response:
-                return jsonify({"status": "error", "message": "Failed to store a commit", "details": response}), 500
-        except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 500
-
-    return jsonify({"status": "success", "message": "Commits stored successfully"})
-# The rest of your Flask routes would remain the same
-
-@app.route('/retrieve_commits', methods=['POST'])
-def retrieve_commits():
-    data = request.json
-    repo_name = data['repo_name']
-    commits = get_commits_by_repo_and_filters(repo_name)
-    return jsonify({"commits": commits})
-
-@app.route('/query_commits', methods=['POST'])
-def query_commits():
-    data = request.json
-    repo_name = data['repo_name']
-    # Example: Filtering by author; you can extend this with more filters like date.
-    author = data.get('author', None)
-    commits = get_commits_by_repo_and_filters(repo_name, author=author)
-    return jsonify({"filtered_commits": commits})
-
-@app.route('/chatbot_query', methods=['POST'])
-def chatbot_query():
-    data = request.json
-    query = data['query']  # User's query
-    api_key = data['api_key']  # OpenAI API key
-    pdf_path = "path_to_your_generated_pdf.pdf"  # Adjust as necessary
+def format_commit_comments(commit_comments):
+    if not commit_comments:
+        return "there were no comments on this commit."
     
-    # Extract text from PDF
-    pdf_text = extract_text_from_pdf(pdf_path)
-    
-    # Combine PDF text and user query as context for OpenAI
-    combined_prompt = f"{pdf_text}\n\n{query}"
-    
-    openai.api_key = api_key
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=combined_prompt,
-        temperature=0.5,
-        max_tokens=1000,  # Adjust based on your needs
-        top_p=1.0,
-        frequency_penalty=0.0,
-        presence_penalty=0.0
+    comment_sentences = []
+    for comment in commit_comments:
+        sentence = f"{comment['commenter']} remarked, '{comment['comment']}'"
+        comment_sentences.append(sentence)
+    return " and ".join(comment_sentences) + "."
+
+def format_commit(commit, commit_id):
+    file_details_str = format_file_details(commit.get("commit details", []))
+    commit_comments_str = format_commit_comments(commit.get("commit comments", []))
+
+    commit_paragraph_format = """ 
+    Commit ID: {id}
+    In a recent update to the repository, Author: {Author[Name]}, reachable at {Author[Email]}, made a commit on {Author[Date]}. This commit, identified by the SHA hash '{sha}', addressed an issue described in the commit message as "{Message}". The detailed record of this commit can be viewed online at {URL of Current Commit}, and its API endpoint is accessible via GitHub API at {url}.
+
+    The commit involved a total of {stats[total]} change(s), breaking down into {stats[additions]} addition(s) and {stats[deletions]} deletion(s). Specifically, {file_details}.
+
+    Furthermore, this commit attracted comments from other contributors, notably {commit_comments}.
+    """
+
+    return commit_paragraph_format.format(
+        id=commit_id,
+        # Author=commit["Author"],
+        file_details=file_details_str,
+        commit_comments=commit_comments_str,
+        **commit  # Unpacking other keys like 'sha', 'Message', etc.
+
     )
-    return jsonify({"response": response.choices[0].text.strip()})
+
+def generate_pdf(commits):
+    if commits:
+        formatted_paragraphs = [format_commit(commit, commit_id) for commit_id, commit in enumerate(commits, 1)]
+        formatted_text = "\n\n".join(formatted_paragraphs)
+        
+        c = canvas.Canvas('output3.pdf', pagesize=letter)
+        textobject = c.beginText(40, 750)
+        textobject.setFont("Helvetica", 10)
+        textobject.setLeading(14)
+        
+        for line in formatted_text.split('\n'):
+            if textobject.getY() < 40:
+                c.drawText(textobject)
+                c.showPage()
+                textobject = c.beginText(40, 750)
+            textobject.textLine(line)
+        
+        c.drawText(textobject)
+        c.save()
+
+        # After generating new PDF, reset and reload the global_vector_retriever
+        load_pdf()
 
 
+@app.before_request
+def load_session():
+    my_secret = os.getenv("SECRET_MY")
 
 
+    headers = {
+        'Authorization': f'token {my_secret}'
+    }
+    session["headers"]=headers
+
+
+@app.route('/fetch_commits', methods=['POST'])
+@after_this_endpoint(load_pdf)
+def fetch_commits():
+    data = request.json
+    username = data['username']
+    openai_key = data['openai_key']
+    openai.api_key=openai_key
+    repo_name = data['repo_name']
+
+    url = f'https://api.github.com/repos/{username}/{repo_name}/commits'
+    page = 1
+    all_commits = []
+
+    while True:
+        response = requests.get(url, params={'per_page': 100, 'page': page},headers=session["headers"])
+        if response.status_code != 200:
+            print(f"Error: Unable to fetch data, status code: {response.status_code}")
+            break
+        commits = response.json()
+        if not commits:
+            print("breaking")
+            break
+
+        print(f"page {page}")
+        cno=0
+        for commit in commits:
+            cno+=1
+            print(f"    cno {cno}")
+            author_info = commit["commit"]["author"]
+            
+            # 'sha': commit['sha'],
+            
+            parent=commit["parents"][0]["html_url"]  if len(commit["parents"])>0 else ""
+            filtered_commit = {
+                "Author": {
+                    "Name": author_info.get("name", ""),
+                    "Email": author_info.get("email", ""),
+                    "Date": author_info.get("date", "")
+                },
+                'sha': commit['sha'],
+                "Message": commit["commit"].get("message", ""),
+                "URL of Current Commit": commit.get("html_url", ""),
+                "url": commit.get("url", ""),
+                "Previous Commit": parent
+            }
+            # Commiting list 
+            url_commit=commit.get("url", False)
+            if url_commit:
+                response = requests.get(url_commit,headers=session["headers"])
+                response=response.json()
+                # print(response)
+                filtered_commit["stats"] = response["stats"]
+                comments_url = response.get("comments_url",[])
+                files=response["files"]
+                file_changes=[]
+                for file in files:
+                    file_dict={
+                        "file name":file["filename"],
+                        "file changes":file["changes"],
+                        "file additions":file["additions"],
+                        "file deletions":file["deletions"],
+                        "status":file["status"],
+                        "raw url":file["raw_url"]
+                    }
+                    file_changes.append(file_dict)
+                
+                filtered_commit["commit details"]= file_changes
+
+                if comments_url:
+                    responses = requests.get(comments_url,headers=session["headers"])
+                    
+                    responses = responses.json()
+                    # print(responses)
+                    comment_list=[]
+                    # TODO: add time and creator status
+                    for response in responses:
+                        comment_dict={
+                            "comment":response.get("body",""),
+                            "commenter":response.get("user",{"login":""})["login"]
+                        }
+                        comment_list.append(comment_dict)
+                    filtered_commit["commit comments"]=comment_list
+                    
+            
+                    # 'files': [file['filename'] for file in commit['files']]
+            
+            all_commits.append(filtered_commit)
+
+        page += 1
+
+    generate_pdf(all_commits)
+
+    return jsonify({"status": "success", "message": "PDF generated successfully"})
+
+@app.route('/ask', methods=['POST'])
+def qna():
+    global global_vector_retriever
+    if global_vector_retriever:
+        data = request.json
+        question=data['question']
+        contexts=global_vector_retriever.retrieve(question)
+        
+        context_list = [n.get_content() for n in contexts]
+        print("Contexts Retrieved:", context_list)
+        
+        prompt = "\n\n".join(context_list + [question])
+        print("Final Prompt:", prompt)  # Debug print
+
+        llm = OpenAI(model="gpt-4-0125-preview")
+        response = llm.complete(prompt)
+        print(str(response))
+        return jsonify({"answer": str(response)}), 200 
+    else:
+        load_pdf()
+        return jsonify({"error": "Vector retriever not initialized"}), 404
+
+
+    
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True,use_reloader=False)
