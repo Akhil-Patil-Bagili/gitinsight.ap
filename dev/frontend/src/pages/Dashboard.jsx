@@ -19,7 +19,7 @@ export const Dashboard = () => {
     const handleSubmit = async () => {
         setLoading(true);  // Start loading before the API call
         try {
-            const response = await axios.post("http://3.94.134.13:5000/fetch_commits", {
+            const response = await axios.post("https://3.94.134.13:5000/fetch_commits", {
                 username,
                 repo_name: reponame,
                 openai_key: import.meta.env.VITE_OPEN_AI_KEY

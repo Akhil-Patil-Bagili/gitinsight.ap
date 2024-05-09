@@ -83,7 +83,7 @@ export const ChatBot = () => {
         setPromptVisible(false); // Close quick access questions
 
         try {
-            const response = await axios.post('http://3.94.134.13:5000/ask', { question: quickQuestion });
+            const response = await axios.post('https://3.94.134.13:5000/ask', { question: quickQuestion });
             const aiMessage = { text: response.data.answer, user: false };
             setMessages(messages => [...messages, aiMessage]);
         } catch (error) {
