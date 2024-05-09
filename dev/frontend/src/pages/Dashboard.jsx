@@ -44,11 +44,17 @@ export const Dashboard = () => {
         }
     };
 
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter') {
+            handleSubmit();
+        }
+    };
+
 
     return (
         <div>
             <Appbar />
-            <div className="bg-slate-200 h-screen flex justify-center">
+            <div className="bg-slate-200 h-screen flex justify-center" onKeyDown={handleKeyPress}>
                 <div className="flex flex-col justify-center">
                     <div className="rounded-lg bg-white w-90 text-center p-2 h-max px-4">
                         <Heading label="Let's Get Insight" />
