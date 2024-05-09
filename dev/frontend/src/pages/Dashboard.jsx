@@ -22,7 +22,7 @@ export const Dashboard = () => {
             const response = await axios.post("http://localhost:5000/fetch_commits", {
                 username,
                 repo_name: reponame,
-                openai_key: "OPENAI_KEY"
+                openai_key: import.meta.env.VITE_OPEN_AI_KEY
             });
 
 
