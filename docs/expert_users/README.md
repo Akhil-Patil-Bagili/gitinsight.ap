@@ -8,6 +8,16 @@ GitInsight offers unparalleled insights into Git repositories for developers, pr
 
 This guide will help you set up GitInsight from scratch, covering both the frontend and backend.
 
+## our application is now live: 
+## Live Link: https://663c9b157c707700084970d2--gitinsight-ai.netlify.app/
+
+Note: If you get into an issue "No response from the server", its because your browser is not setup to allow the origin. To fix this issue, please follow the below steps-
+- open new tab in the same browser and go to the link: https://34.229.180.222/fetch_commits
+- click on advance and then proceed to use option.
+- This should give you Method Not Allowed page which simply means you have successfully allowed the origin.
+- Now try accessing the app again in the same browser. It should work fine then.
+
+
 ### Prerequisites
 
 Ensure you have the following installed:
