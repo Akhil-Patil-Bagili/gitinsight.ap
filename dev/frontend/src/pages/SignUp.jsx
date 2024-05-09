@@ -17,21 +17,30 @@ export const SignUp = () => {
 
 
     const handleSubmit = () => {
-        const users = JSON.parse(localStorage.getItem('users') || '[]'); // Retrieve users or an empty array if none
-        // Check if the user already exists
-        if (users.some(user => user.username === username)) {
-            alert('Username already taken');
-            return;
+        try{
+            if (!firstName || !lastName || !username || !password) {
+                alert('All fields are required.');
+                return;
+              }
+            const users = JSON.parse(localStorage.getItem('users') || '[]'); // Retrieve users or an empty array if none
+            // Check if the user already exists
+            if (users.some(user => user.username === username)) {
+                alert('Username already taken');
+                return;
+            }
+            const newUser = {
+                firstName,
+                lastName,
+                username,
+                password // In a real application, never store plaintext passwords!
+            };
+            localStorage.setItem('users', JSON.stringify([...users, newUser])); // Save the new user array to local storage
+            alert('Signup successful');
+            navigate('/signin');
         }
-        const newUser = {
-            firstName,
-            lastName,
-            username,
-            password // In a real application, never store plaintext passwords!
-        };
-        localStorage.setItem('users', JSON.stringify([...users, newUser])); // Save the new user array to local storage
-        alert('Signup successful');
-        navigate('/signin');
+        catch(error){
+            alert('Signup failed');
+        }
     };
 
 

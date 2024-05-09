@@ -15,6 +15,10 @@ export const SignIn = () => {
 
 
     const handleSubmit = () => {
+        if (!username || !password) {
+            alert('All fields are required.');
+            return;
+          }
         const users = JSON.parse(localStorage.getItem('users') || '[]');
         const user = users.find(user => user.username === username && user.password === password);
         if (user) {

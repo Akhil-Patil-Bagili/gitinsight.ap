@@ -9,7 +9,7 @@ import textwrap
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from pathlib import Path
-import cassio
+# import cassio
 from llama_index.core import StorageContext, VectorStoreIndex
 from llama_index.vector_stores import CassandraVectorStore
 from llama_index.core import download_loader

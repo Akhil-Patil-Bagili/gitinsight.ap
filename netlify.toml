@@ -1,11 +1,8 @@
-[[headers]]
-# Apply headers to JavaScript files
-for = "*.js"
-[headers.values]
-Content-Type = "text/javascript"
+[build]
+  publish = "dist"  # or "dist" if that's your output directory
+  command = "npm run build"
 
-[[headers]]
-# Apply headers to JSX files
-for = "*.jsx"
-[headers.values]
-Content-Type = "text/javascript"
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
