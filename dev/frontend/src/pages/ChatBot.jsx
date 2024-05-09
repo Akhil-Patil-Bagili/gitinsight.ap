@@ -81,10 +81,21 @@ export const ChatBot = () => {
         setMessages(messages => [...messages, userMessage]);
         setIsLoading(true);
         setPromptVisible(false); // Close quick access questions
-
         try {
-            const response = await axios.post('https://34.229.180.222/ask', { question: quickQuestion });
-            const aiMessage = { text: response.data.answer, user: false };
+            const response = await fetch('https://34.229.180.222/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question: quickQuestion })
+            });
+        
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+        
+            const data = await response.json();
+            const aiMessage = { text: data.answer, user: false };
             setMessages(messages => [...messages, aiMessage]);
         } catch (error) {
             console.error('Error communicating with the API:', error);
@@ -92,7 +103,6 @@ export const ChatBot = () => {
         } finally {
             setIsLoading(false);
         }
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();

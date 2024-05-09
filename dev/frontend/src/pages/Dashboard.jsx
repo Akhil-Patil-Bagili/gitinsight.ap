@@ -19,22 +19,26 @@ export const Dashboard = () => {
     const handleSubmit = async () => {
         setLoading(true);  // Start loading before the API call
         try {
-            const response = await axios.post("https://34.229.180.222/fetch_commits", {
-                username,
-                repo_name: reponame,
-                openai_key: import.meta.env.VITE_OPEN_AI_KEY
+            const response = await fetch("https://34.229.180.222/fetch_commits", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username,
+                    repo_name: reponame,
+                    openai_key: import.meta.env.VITE_OPEN_AI_KEY
+                })
             });
-
-
-            if (response.status === 200) {
+        
+            if (response.ok) {
                 navigate("/chatbot");
             } else {
-                alert("Failed to fetch commits: " + response.status + " - " + response.statusText);
+                const errorData = await response.json();
+                alert("Failed to fetch commits: " + response.status + " - " + errorData.message);
             }
         } catch (error) {
-            if (error.response) {
-                alert("API Error: " + error.response.status + " - " + error.response.data.message);
-            } else if (error.request) {
+            if (error instanceof TypeError) {
                 alert("No response from server.");
             } else {
                 alert("Error: " + error.message);
@@ -42,7 +46,7 @@ export const Dashboard = () => {
         } finally {
             setLoading(false);  // Stop loading after the API call is completed
         }
-    };
+        
 
     const handleKeyPress = (e) => {
         if (e.key === 'Enter') {
