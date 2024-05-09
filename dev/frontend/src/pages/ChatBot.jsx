@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+// import axios from 'axios';
 import { RiChatNewLine as ChatIcon, RiMore2Fill, RiLoader4Line as SpinnerIcon } from 'react-icons/ri';
 import { Appbar } from '../components/Appbar';
 import '../index.css';
@@ -103,6 +103,7 @@ export const ChatBot = () => {
         } finally {
             setIsLoading(false);
         }
+    }
 
     const handleSubmit = async (e) => {
         e.preventDefault();
